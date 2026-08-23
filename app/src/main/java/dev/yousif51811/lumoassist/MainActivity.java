@@ -66,7 +66,6 @@ public class MainActivity extends Activity {
     private WebSettings chatWebSettings = null;
     private CookieManager chatCookieManager = null;
     private final Context context = this;
-    private SwipeTouchListener swipeTouchListener;
     private String TAG ="lumoAssist";
     private String urlToLoad = "https://lumo.proton.me/";
     private static boolean restricted = true;
@@ -79,14 +78,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         if (chatCookieManager!=null) chatCookieManager.flush();
-        swipeTouchListener = null;
         super.onPause();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        chatWebView.setOnTouchListener(swipeTouchListener);
     }
 
     @Override
