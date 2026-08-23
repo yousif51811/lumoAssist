@@ -4,7 +4,8 @@ will require the developer to submit personal identity details directly to Googl
 Since the developers of this app do not agree to this requirement, this app will no longer 
 work on certified Android devices after that time.
 ```
-<img src="fastlane/metadata/android/en-US/images/icon.png" alt="lumoAssist logo" height=30/>
+<img src="fastlane/metadata/android/en-US/images/icon.png" alt="lumoAssist logo" height=30
+
 # lumoAssist
 
 ⚠️ This project was created using partial AI assistance.
