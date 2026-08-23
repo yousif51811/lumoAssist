@@ -18,6 +18,7 @@ import static android.webkit.WebView.HitTestResult.SRC_ANCHOR_TYPE;
 import static android.webkit.WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE;
 import android.Manifest;
 import android.app.Activity;
+import android.webkit.JavascriptInterface;
 import android.app.DownloadManager;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -68,10 +69,6 @@ public class MainActivity extends Activity {
     private final Context context = this;
     private String TAG ="lumoAssist";
     private String urlToLoad = "https://lumo.proton.me/";
-    private static boolean restricted = true;
-
-    private static final ArrayList<String> allowedDomains = new ArrayList<String>();
-
     private ValueCallback<Uri[]> mUploadMessage;
     private final static int FILE_CHOOSER_REQUEST_CODE = 1;
 
@@ -88,7 +85,6 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        restricted = true;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             setTheme(android.R.style.Theme_DeviceDefault_DayNight);
         }
@@ -106,20 +102,7 @@ public class MainActivity extends Activity {
         chatCookieManager.setAcceptCookie(true);
         chatCookieManager.setAcceptThirdPartyCookies(chatWebView, false);
 
-        //Restrict what gets loaded
-        initURLs();
-        registerForContextMenu(chatWebView);
-
         chatWebView.setWebChromeClient(new WebChromeClient(){
-            @Override
-            public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
-                if (consoleMessage.message().contains("NotAllowedError: Write permission denied.")) {  //this error occurs when user copies to clipboard
-                    Toast.makeText(context, R.string.error_copy,Toast.LENGTH_LONG).show();
-                    return true;
-                }
-                return false;
-            }
-
             @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
@@ -163,54 +146,39 @@ public class MainActivity extends Activity {
         });  //needed to share link
 
         chatWebView.setWebViewClient(new WebViewClient() {
-            //Keep these in sync!
-            @Override
-            public WebResourceResponse shouldInterceptRequest(final WebView view, WebResourceRequest request) {
-                if (!restricted) return null;
-
-                if (request.getUrl().toString().equals("about:blank")) {
-                    return null;
-                }
-                if (!request.getUrl().toString().startsWith("https://")) {
-                    Log.d(TAG, "[shouldInterceptRequest][NON-HTTPS] Blocked access to " + request.getUrl().toString());
-                    return new WebResourceResponse("text/javascript", "UTF-8", null); //Deny URLs that aren't HTTPS
-                }
-                boolean allowed = false;
-                for (String url : allowedDomains) {
-                    if (request.getUrl().getHost().endsWith(url)) {
-                        allowed = true;
-                    }
-                }
-                if (!allowed) {
-                    Log.d(TAG, "[shouldInterceptRequest][NOT ON ALLOWLIST] Blocked access to " + request.getUrl().getHost());
-                    return new WebResourceResponse("text/javascript", "UTF-8", null); //Deny URLs not on ALLOWLIST
-                }
-                return null;
-            }
-
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                if (!restricted) return false;
+                String urlStr = request.getUrl().toString();
+                if (urlStr.equals("about:blank")) return false;
 
-                if (request.getUrl().toString().equals("about:blank")) {
-                    return false;
-                }
-                if (!request.getUrl().toString().startsWith("https://")) {
-                    Log.d(TAG, "[shouldOverrideUrlLoading][NON-HTTPS] Blocked access to " + request.getUrl().toString());
-                    return true; //Deny URLs that aren't HTTPS
-                }
-                boolean allowed = false;
-                for (String url : allowedDomains) {
-                    if (request.getUrl().getHost().endsWith(url)) {
-                        allowed = true;
-                    }
-                }
+                boolean allowed = urlStr.startsWith("https://lumo.proton.me/") ||
+                        urlStr.startsWith("https://proton.me/");
+
                 if (!allowed) {
-                    Log.d(TAG, "[shouldOverrideUrlLoading][NOT ON ALLOWLIST] Blocked access to " + request.getUrl().getHost());
-                    return true; //Deny URLs not on ALLOWLIST
+                    Intent intent = new Intent(Intent.ACTION_VIEW, request.getUrl());
+                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                    return true;
                 }
                 return false;
             }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                // Wait for sidebar to be fully loaded
+                view.postDelayed(() -> {
+                    injectSidebarButton(view);
+                }, 1000); // 1 second delay to ensure DOM is ready
+            }
+
+            private void injectSidebarButton(WebView webView) {
+                String javascript = readAsset("injectSidebar.js");
+
+                if (!javascript.isEmpty()) {
+                    webView.evaluateJavascript(javascript, null);
+                }
+            }
+
         });
 
         chatWebView.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
@@ -245,10 +213,29 @@ public class MainActivity extends Activity {
         chatWebSettings.setDisplayZoomControls(false);
         chatWebSettings.setSaveFormData(false);
         chatWebSettings.setGeolocationEnabled(false);
-
+        chatWebView.addJavascriptInterface(
+                new AndroidInterface(),
+                "AndroidInterface"
+        );
         //Load Lumo
         chatWebView.loadUrl(urlToLoad);
         FreeDroidWarn.showWarningOnUpgrade(this, BuildConfig.VERSION_CODE);
+    }
+
+    private String readAsset(String fileName) {
+        try {
+            AssetManager assetManager = getAssets();
+            InputStream inputStream = assetManager.open(fileName);
+
+            byte[] buffer = new byte[inputStream.available()];
+            inputStream.read(buffer);
+            inputStream.close();
+
+            return new String(buffer, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            Log.e(TAG, "Could not read asset: " + fileName, e);
+            return "";
+        }
     }
 
     @Override
@@ -273,12 +260,6 @@ public class MainActivity extends Activity {
         return super.onKeyDown(keyCode, event);
     }
 
-    private static void initURLs() {
-        //Allowed Domains
-        allowedDomains.add("proton.me");
-
-    }
-
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
         super.onActivityResult(requestCode, resultCode, intent);
@@ -296,76 +277,6 @@ public class MainActivity extends Activity {
             mUploadMessage.onReceiveValue(result);
             mUploadMessage = null;
         }
-    }
-
-    @Override
-    public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
-        super.onCreateContextMenu(menu, v, menuInfo);
-        WebView.HitTestResult result = chatWebView.getHitTestResult();
-        String url = "";
-        if (result.getExtra() != null) {
-            if (result.getType() == IMAGE_TYPE) {
-                url = result.getExtra();
-                Uri source = Uri.parse(url);
-                DownloadManager.Request request = new DownloadManager.Request(source);
-                request.addRequestHeader("Cookie", CookieManager.getInstance().getCookie(url));
-                request.addRequestHeader("Accept", "text/html, application/xhtml+xml, *" + "/" + "*");
-                request.addRequestHeader("Accept-Language", "en-US,en;q=0.7,he;q=0.3");
-                request.addRequestHeader("Referer", url);
-                request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED); //Notify client once download is completed!
-                String filename = URLUtil.guessFileName(url, null, "image/jpeg");
-                request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
-                Toast.makeText(this, getString(R.string.download) + "\n" + filename, Toast.LENGTH_SHORT).show();
-                DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-                assert dm != null;
-                dm.enqueue(request);
-            } else if (result.getType() == SRC_IMAGE_ANCHOR_TYPE || result.getType() == SRC_ANCHOR_TYPE) {
-                if (result.getType() == SRC_IMAGE_ANCHOR_TYPE) {
-                    // Create a background thread that has a Looper
-                    HandlerThread handlerThread = new HandlerThread("HandlerThread");
-                    handlerThread.start();
-                    // Create a handler to execute tasks in the background thread.
-                    Handler backgroundHandler = new Handler(handlerThread.getLooper());
-                    Message msg = backgroundHandler.obtainMessage();
-                    chatWebView.requestFocusNodeHref(msg);
-                    url = (String) msg.getData().get("url");
-                    Toast.makeText(this, "SRC_IMAGE: " + url, Toast.LENGTH_SHORT).show();
-                } else if (result.getType() == SRC_ANCHOR_TYPE) {
-                    url = result.getExtra();
-                    Toast.makeText(this, "SRC_ANCHOR: " + url, Toast.LENGTH_SHORT).show();
-                }
-                String host = Uri.parse(url).getHost();
-                if (host != null) {
-                    boolean allowed = false;
-                    for (String domain : allowedDomains) {
-                        if (host.endsWith(domain)) {
-                            allowed = true;
-                            break;
-                        }
-                    }
-                    if (!allowed) {  //Copy URLs that are not allowed to open to clipboard
-                        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                        ClipData clip = ClipData.newPlainText(getString(R.string.app_name), url);
-                        clipboard.setPrimaryClip(clip);
-                        Toast.makeText(this, getString(R.string.url_copied), Toast.LENGTH_SHORT).show();
-                    }
-                }
-            }
-        }
-    }
-
-    public String modUserAgent(){
-
-        String newPrefix = "Mozilla/5.0 (X11; Linux "+ System.getProperty("os.arch") +")";
-
-        String newUserAgent=WebSettings.getDefaultUserAgent(context);
-        String prefix = newUserAgent.substring(0, newUserAgent.indexOf(")") + 1);
-         try {
-                newUserAgent=newUserAgent.replace(prefix,newPrefix);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-         return newUserAgent;
     }
 
 
@@ -388,5 +299,26 @@ public class MainActivity extends Activity {
             }
         }
     }
+    private class AndroidInterface {
+
+        @JavascriptInterface
+        public void openOptions() {
+            runOnUiThread(() -> {
+                Intent intent = new Intent(
+                        MainActivity.this,
+                        OptionsActivity.class
+                );
+
+                startActivity(intent);
+
+                Toast.makeText(
+                        MainActivity.this,
+                        "All Options are placeholder only for the time being.",
+                        Toast.LENGTH_SHORT
+                ).show();
+            });
+        }
+    }
+
 
 }
