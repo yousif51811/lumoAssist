@@ -7,11 +7,11 @@ android {
     namespace 'dev.yousif51811.lumoassist'
     android.buildFeatures.buildConfig true
     defaultConfig {
-        applicationId "dev.yousif51811.gptassist"
+        applicationId "dev.yousif51811.lumoassist"
         minSdk 21
         targetSdk 35
-        versionCode 240
-        versionName "2.40"
+        versionCode 1
+        versionName "0.1.0"
     }
 
     buildTypes {

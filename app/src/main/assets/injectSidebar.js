@@ -22,14 +22,37 @@
         button.type = "button";
         button.className =
             "sidebar-item flex items-center w-full cursor-pointer px-1.5 py-2";
-        button.setAttribute("aria-label", "My Options");
+        button.setAttribute("aria-label", "lumoAssist Options");
 
         // No icon for now.
-        button.innerHTML =
-            '<div class="sidebar-item-icon"></div>' +
-            '<span class="sidebar-item-text flex-1 flex items-center gap-2">' +
-                '<span class="sidebar-item-label">My Options</span>' +
-            "</span>";
+        button.innerHTML = `
+            <div class="sidebar-item-icon flex items-center justify-start shrink-0" aria-hidden="true">
+                <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                >
+                    <circle cx="12" cy="12" r="8.5"></circle>
+                    <path d="M8 8v3"></path>
+                    <path d="M8 13v3"></path>
+                    <path d="M16 8v3"></path>
+                    <path d="M16 13v3"></path>
+                    <path d="M6.5 11h3"></path>
+                    <path d="M14.5 13h3"></path>
+                </svg>
+            </div>
+
+            <span class="sidebar-item-text flex-1 flex items-center gap-2">
+                <span class="sidebar-item-label">lumoAssist Options</span>
+            </span>
+        `;
+
 
         button.addEventListener("click", function (event) {
             event.preventDefault();
