@@ -11,7 +11,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-package org.woheller69.gptassist;
+package dev.yousif51811.lumoassist;
 
 import static android.webkit.WebView.HitTestResult.IMAGE_TYPE;
 import static android.webkit.WebView.HitTestResult.SRC_ANCHOR_TYPE;
@@ -48,7 +48,6 @@ import android.webkit.WebSettings;
 import android.webkit.WebStorage;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.ImageButton;
 import android.widget.Toast;
 import android.webkit.ValueCallback;
 import android.net.Uri;
@@ -64,13 +63,12 @@ import java.util.ArrayList;
 public class MainActivity extends Activity {
 
     private WebView chatWebView = null;
-    private ImageButton restrictedButton = null;
     private WebSettings chatWebSettings = null;
     private CookieManager chatCookieManager = null;
     private final Context context = this;
     private SwipeTouchListener swipeTouchListener;
-    private String TAG ="gptAssist";
-    private String urlToLoad = "https://chatgpt.com/";
+    private String TAG ="lumoAssist";
+    private String urlToLoad = "https://lumo.proton.me/";
     private static boolean restricted = true;
 
     private static final ArrayList<String> allowedDomains = new ArrayList<String>();
@@ -88,36 +86,6 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-
-        if (restricted) restrictedButton.setImageDrawable(getDrawable(R.drawable.restricted));
-        else restrictedButton.setImageDrawable(getDrawable(R.drawable.unrestricted));
-
-        restrictedButton.setOnClickListener(v -> {
-            restricted = !restricted;
-            if (restricted) {
-                restrictedButton.setImageDrawable(getDrawable(R.drawable.restricted));
-                Toast.makeText(context,R.string.urls_restricted,Toast.LENGTH_SHORT).show();
-                chatWebSettings.setUserAgentString(modUserAgent());
-            }
-            else {
-                restrictedButton.setImageDrawable(getDrawable(R.drawable.unrestricted));
-                Toast.makeText(context,R.string.all_urls,Toast.LENGTH_SHORT).show();
-                chatWebSettings.setUserAgentString(modUserAgent()); //Needed for login via Google
-            }
-            chatWebView.reload();
-        });
-
-        swipeTouchListener = new SwipeTouchListener(context) {
-            public void onSwipeBottom() {
-                if (!chatWebView.canScrollVertically(0)) {
-                    restrictedButton.setVisibility(View.VISIBLE);
-                }
-            }
-            public void onSwipeTop(){
-                    restrictedButton.setVisibility(View.GONE);
-            }
-        };
-
         chatWebView.setOnTouchListener(swipeTouchListener);
     }
 
@@ -135,7 +103,6 @@ public class MainActivity extends Activity {
         //Create the WebView
         chatWebView = findViewById(R.id.chatWebView);
         registerForContextMenu(chatWebView);
-        restrictedButton = findViewById(R.id.restricted);
 
         //Set cookie options
         chatCookieManager = CookieManager.getInstance();
@@ -219,22 +186,6 @@ public class MainActivity extends Activity {
                 }
                 if (!allowed) {
                     Log.d(TAG, "[shouldInterceptRequest][NOT ON ALLOWLIST] Blocked access to " + request.getUrl().getHost());
-                    if (request.getUrl().getHost().equals("login.microsoftonline.com") || request.getUrl().getHost().equals("accounts.google.com") || request.getUrl().getHost().equals("appleid.apple.com")){
-                        // ✅ Post ALL UI/WebView operations to main thread
-                        view.post(() -> {
-                            Toast.makeText(context, context.getString(R.string.error_microsoft_google), Toast.LENGTH_LONG).show();
-                            resetChat(); // Now safe: runs on UI thread where WebView was created
-                        });
-                    }
-                    if (request.getUrl().toString().contains("gravatar.com/avatar/")) {
-                        AssetManager assetManager = getAssets();
-                        try {
-                            InputStream inputStream = assetManager.open("avatar.png");
-                            return new WebResourceResponse("image/png","UTF-8",inputStream);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
                     return new WebResourceResponse("text/javascript", "UTF-8", null); //Deny URLs not on ALLOWLIST
                 }
                 return null;
@@ -259,23 +210,9 @@ public class MainActivity extends Activity {
                 }
                 if (!allowed) {
                     Log.d(TAG, "[shouldOverrideUrlLoading][NOT ON ALLOWLIST] Blocked access to " + request.getUrl().getHost());
-                    if (request.getUrl().getHost().equals("login.microsoftonline.com") || request.getUrl().getHost().equals("accounts.google.com") || request.getUrl().getHost().equals("appleid.apple.com")){
-                        // ✅ Post ALL UI/WebView operations to main thread
-                        view.post(() -> {
-                            Toast.makeText(context, context.getString(R.string.error_microsoft_google), Toast.LENGTH_LONG).show();
-                            resetChat(); // Now safe: runs on UI thread where WebView was created
-                        });
-                    }
                     return true; //Deny URLs not on ALLOWLIST
                 }
                 return false;
-            }
-
-            @Override
-            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                if (request != null && request.isForMainFrame()) {
-                    Log.w(TAG, "[onReceivedError] " + error.getErrorCode() + ": " + error.getDescription() + " @ " + request.getUrl());
-                }
             }
         });
 
@@ -312,10 +249,9 @@ public class MainActivity extends Activity {
         chatWebSettings.setSaveFormData(false);
         chatWebSettings.setGeolocationEnabled(false);
 
-        //Load ChatGPT
+        //Load Lumo
         chatWebView.loadUrl(urlToLoad);
         FreeDroidWarn.showWarningOnUpgrade(this, BuildConfig.VERSION_CODE);
-        if (GithubStar.shouldShowStarDialog(this)) GithubStar.starDialog(this,"https://github.com/woheller69/gptassist");
     }
 
     @Override
@@ -340,32 +276,9 @@ public class MainActivity extends Activity {
         return super.onKeyDown(keyCode, event);
     }
 
-    public void resetChat()  {
-
-        chatWebView.clearCache(true);
-        chatWebView.clearFormData();
-        chatWebView.clearHistory();
-        chatWebView.clearMatches();
-        chatWebView.clearSslPreferences();
-        chatCookieManager.removeSessionCookie();
-        chatCookieManager.removeAllCookie();
-        CookieManager.getInstance().removeAllCookies(null);
-        CookieManager.getInstance().flush();
-        WebStorage.getInstance().deleteAllData();
-        chatWebView.loadUrl(urlToLoad);
-
-
-    }
-
     private static void initURLs() {
         //Allowed Domains
-        allowedDomains.add("cdn.auth0.com");
-        allowedDomains.add("auth.openai.com");
-        allowedDomains.add("chatgpt.com");
-        allowedDomains.add("openai.com");
-        allowedDomains.add("fileserviceuploadsperm.blob.core.windows.net");
-        allowedDomains.add("cdn.oaistatic.com");
-        allowedDomains.add("oaiusercontent.com");
+        allowedDomains.add("proton.me");
 
     }
 

@@ -1,4 +1,4 @@
-package org.woheller69.gptassist;
+package dev.yousif51811.lumoassist;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
