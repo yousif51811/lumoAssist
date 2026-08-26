@@ -152,7 +152,7 @@ public class MainActivity extends Activity {
                 if (urlStr.equals("about:blank")) return false;
 
                 boolean allowed = urlStr.startsWith("https://lumo.proton.me/") ||
-                        urlStr.startsWith("https://proton.me/");
+                        urlStr.startsWith("https://account.proton.me/");
 
                 if (!allowed) {
                     Intent intent = new Intent(Intent.ACTION_VIEW, request.getUrl());
